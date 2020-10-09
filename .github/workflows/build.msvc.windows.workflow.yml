@@ -8,9 +8,6 @@ on:
   release:
     types: [published]
 
-env:
-  QT_VERSION: "5.15.0"
-
 jobs:
   # Constants to simplify things
   
