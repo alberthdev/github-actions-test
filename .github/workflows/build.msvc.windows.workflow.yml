@@ -94,11 +94,11 @@ jobs:
     - name: Get symbols (release)
       shell: cmd
       run: |
-        cd %VCPKG_ROOT%\installed\*\lib
+        cd %RUNVCPKG_VCPKG_ROOT%\installed\*\lib
         dumpbin /all libpng16.lib
 
     - name: Get symbols (debug)
       shell: cmd
       run: |
-        cd %VCPKG_ROOT%\installed\*\lib
+        cd %RUNVCPKG_VCPKG_ROOT%\installed\*\lib
         dumpbin /all libpng16d.lib
