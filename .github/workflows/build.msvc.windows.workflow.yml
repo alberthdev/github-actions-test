@@ -2,9 +2,9 @@ name: Build/Deploy MSVC Windows
 
 on:
   push:
-    branches: [ master, features/github-actions ]
+    branches: [ main, features/github-actions ]
   pull_request:
-    branches: [ master, features/github-actions ]
+    branches: [ main, features/github-actions ]
   release:
     types: [published]
 
