@@ -1,0 +1,94 @@
+name: Build/Deploy MSVC Windows
+
+on:
+  push:
+    branches: [ master, features/github-actions ]
+  pull_request:
+    branches: [ master, features/github-actions ]
+  release:
+    types: [published]
+
+env:
+  QT_VERSION: "5.15.0"
+
+jobs:
+  # Constants to simplify things
+  
+  build:
+    name: "Build target: ${{ matrix.linking }} (${{ matrix.arch }})"
+    runs-on: windows-2019
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+        linking: [dynamic, static]
+        include:
+          - arch: x86
+            arch_name: 32-bit
+            arch_suffix: "32"
+            arch_qt_msvc: win32_msvc2019
+            arch_extra_msbuild_args: ""
+          - arch: x64
+            arch_name: 64-bit
+            arch_suffix: "64"
+            arch_qt_msvc: win64_msvc2019_64
+            arch_extra_msbuild_args: '/p:Platform="x64"'
+          
+          - linking: dynamic
+            linking_name: Dynamic/Shared
+            linking_suffix: dyn
+            linking_build_dir_prefix: build
+          - linking: static
+            linking_name: Static
+            linking_suffix: static
+            linking_build_dir_prefix: build_static
+          
+          - arch: x86
+            linking: static
+            QT5_BIN_DIR: C:\Qt\Qt5.15.0-static\bin
+          - arch: x64
+            linking: static
+            QT5_BIN_DIR: C:\Qt\Qt5.15.0x64-static\bin
+
+    env:
+      VCPKG_PLATFORM_TOOLSET: v141
+      VC_VARS_VERSION: 14.1
+
+    steps:
+    
+    ## Checkout Git repo
+    - name: Checkout Git Repo
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    
+    ## Install all major library deps
+    
+    # Add MSYS2's /usr/bin to the PATH.
+    # This allows vcpkg's build of libpng[apng] to succeed with adding the library prefix.
+    # (It requires awk to correctly regen the source files...)
+    - name: Add msys2 to system PATH
+      run: |
+        echo C:\msys64\usr\bin >> $env:GITHUB_PATH
+    
+    - name: Test access to awk
+      run: |
+        echo test | awk '{print}'
+
+    - name: Set vcpkg's response file path used as part of cache's key.
+      uses: lukka/set-shell-env@master
+      with:
+        VCPKGRESPONSEFILE: ${{ github.workspace }}/.github/workflows/vcpkg/msvc.windows.${{ matrix.arch }}.${{ matrix.linking }}.vcpkg.txt
+        filter: ^VCPKG.*
+
+    # Restore from cache the previously built ports. If cache-miss, download, build vcpkg.
+    # Then install libarchive + libpng-apng for all targets.
+    - name: Restore from cache and install vcpkg + libraries (libarchive, libpng-apng)
+      # Download and build vcpkg, without installing any port. If content is cached already, it is a no-op.
+      uses: lukka/run-vcpkg@v4
+      with:
+        vcpkgArguments: '@${{ env.VCPKGRESPONSEFILE }}'
+        # This commit ID corresponds to 2020.07
+        vcpkgGitCommitId: 56fffbe49dfb4dd8fae0940f272c5fd2b86be991
+        appendedCacheKey: ${{ hashFiles(env.VCPKGRESPONSEFILE) }}-${{ runner.os }}-${{ matrix.arch_suffix }}-${{ matrix.linking }}

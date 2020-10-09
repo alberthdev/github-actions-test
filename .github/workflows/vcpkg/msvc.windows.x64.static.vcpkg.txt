@@ -1,0 +1,2 @@
+libpng[core,apng]:x64-windows-static
+--recurse
