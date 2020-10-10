@@ -61,18 +61,6 @@ jobs:
         submodules: 'recursive'
     
     ## Install all major library deps
-    
-    # Add MSYS2's /usr/bin to the PATH.
-    # This allows vcpkg's build of libpng[apng] to succeed with adding the library prefix.
-    # (It requires awk to correctly regen the source files...)
-    - name: Add msys2 to system PATH
-      run: |
-        echo C:\msys64\usr\bin >> $env:GITHUB_PATH
-    
-    - name: Test access to awk
-      shell: cmd
-      run: |
-        echo test | awk '{print}'
 
     - name: Set vcpkg's response file path used as part of cache's key.
       uses: lukka/set-shell-env@master
@@ -89,16 +77,37 @@ jobs:
         vcpkgArguments: '@${{ env.VCPKGRESPONSEFILE }}'
         # This commit ID corresponds to 2020.07
         vcpkgGitCommitId: 56fffbe49dfb4dd8fae0940f272c5fd2b86be991
-        appendedCacheKey: ${{ hashFiles(env.VCPKGRESPONSEFILE) }}-${{ runner.os }}-${{ matrix.arch_suffix }}-${{ matrix.linking }}
+        appendedCacheKey: ${{ hashFiles(env.VCPKGRESPONSEFILE) }}-${{ runner.os }}-${{ matrix.arch_suffix }}-${{ matrix.linking }}y
+        setupOnly: true
 
-    - name: Get symbols (release)
+    - name: Patch libpng-apng portfile
       shell: cmd
       run: |
-        cd %RUNVCPKG_VCPKG_ROOT%\installed\*\lib
-        dumpbin /all libpng16.lib
+        copy /Y ${{ github.workspace }}\.github\workflows\vcpkg\libpng-portfile.cmake .\vcpkg\ports\libpng\portfile.cmake
 
-    - name: Get symbols (debug)
+    - name: Install packages
       shell: cmd
       run: |
-        cd %RUNVCPKG_VCPKG_ROOT%\installed\*\lib
-        dumpbin /all libpng16d.lib
+        .\vcpkg\vcpkg remove --outdated --recurse
+        .\vcpkg\vcpkg install @${{ env.VCPKGRESPONSEFILE }} || echo Building failed.
+
+    # Setup VS
+    - name: "Setup MSVC++ paths (${{ matrix.arch_name }} target)"
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ matrix.arch }}
+        toolset: ${{ env.VC_VARS_VERSION }}
+    
+    # Install vcpkg integration
+    - name: Install vcpkg integration (${{ matrix.arch_name }})
+      run: ${{ env.VCPKG_ROOT }}/vcpkg integrate install
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: vcpkg-buildtrees-${{ matrix.arch }}-${{ matrix.linking }}
+        path: vcpkg/buildtrees
+    
+    - uses: actions/upload-artifact@v2
+      with:
+        name: vcpkg-installed-${{ matrix.arch }}-${{ matrix.linking }}
+        path: vcpkg/installed
