@@ -3,54 +3,13 @@ name: Build/Deploy MSVC Windows
 on:
   push:
     branches: [ main, features/github-actions ]
-  pull_request:
-    branches: [ main, features/github-actions ]
-  release:
-    types: [published]
 
 jobs:
   # Constants to simplify things
   
   build:
-    name: "Build target: ${{ matrix.linking }} (${{ matrix.arch }})"
+    name: "Build"
     runs-on: windows-2019
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x86, x64]
-        linking: [dynamic, static]
-        include:
-          - arch: x86
-            arch_name: 32-bit
-            arch_suffix: "32"
-            arch_qt_msvc: win32_msvc2019
-            arch_extra_msbuild_args: ""
-          - arch: x64
-            arch_name: 64-bit
-            arch_suffix: "64"
-            arch_qt_msvc: win64_msvc2019_64
-            arch_extra_msbuild_args: '/p:Platform="x64"'
-          
-          - linking: dynamic
-            linking_name: Dynamic/Shared
-            linking_suffix: dyn
-            linking_build_dir_prefix: build
-          - linking: static
-            linking_name: Static
-            linking_suffix: static
-            linking_build_dir_prefix: build_static
-          
-          - arch: x86
-            linking: static
-            QT5_BIN_DIR: C:\Qt\Qt5.15.0-static\bin
-          - arch: x64
-            linking: static
-            QT5_BIN_DIR: C:\Qt\Qt5.15.0x64-static\bin
-
-    env:
-      VCPKG_PLATFORM_TOOLSET: v141
-      VC_VARS_VERSION: 14.1
 
     steps:
     
@@ -59,46 +18,40 @@ jobs:
       uses: actions/checkout@v2
       with:
         submodules: 'recursive'
-    
-    ## Install all major library deps
-    
-    # Add MSYS2's /usr/bin to the PATH.
-    # This allows vcpkg's build of libpng[apng] to succeed with adding the library prefix.
-    # (It requires awk to correctly regen the source files...)
-    - name: Add msys2 to system PATH
-      run: |
-        echo C:\msys64\usr\bin >> $env:GITHUB_PATH
-    
-    - name: Test access to awk
-      shell: cmd
-      run: |
-        echo test | awk '{print}'
-
-    - name: Set vcpkg's response file path used as part of cache's key.
-      uses: lukka/set-shell-env@master
-      with:
-        VCPKGRESPONSEFILE: ${{ github.workspace }}/.github/workflows/vcpkg/msvc.windows.${{ matrix.arch }}.${{ matrix.linking }}.vcpkg.txt
-        filter: ^VCPKG.*
 
     # Restore from cache the previously built ports. If cache-miss, download, build vcpkg.
     # Then install libarchive + libpng-apng for all targets.
     - name: Restore from cache and install vcpkg + libraries (libarchive, libpng-apng)
       # Download and build vcpkg, without installing any port. If content is cached already, it is a no-op.
-      uses: lukka/run-vcpkg@v4
+      uses: lukka/run-vcpkg@v7
       with:
         vcpkgArguments: '@${{ env.VCPKGRESPONSEFILE }}'
-        # This commit ID corresponds to 2020.07
-        vcpkgGitCommitId: 56fffbe49dfb4dd8fae0940f272c5fd2b86be991
-        appendedCacheKey: ${{ hashFiles(env.VCPKGRESPONSEFILE) }}-${{ runner.os }}-${{ matrix.arch_suffix }}-${{ matrix.linking }}
+        # libpng-apng portfile fixed (microsoft/vcpkg#13837) as of 2020.10.13
+        # This commit ID dates 6/4/2021 (not tied to a tag)
+        vcpkgGitCommitId: 834a87732ce7677ae480febc1cb18c9c80371fbf
+        appendedCacheKey: 2344
+        setupOnly: true
 
-    - name: Get symbols (release)
+    - name: Patch vcpkg cmake files
       shell: cmd
       run: |
-        cd %VCPKG_ROOT%\installed\*\lib
-        dumpbin /all libpng16.lib
+        echo Updating: vcpkg\scripts\cmake\vcpkg_execute_required_process.cmake
+        copy /b /v /y .github\workflows\vcpkg-patches\vcpkg_execute_required_process.cmake vcpkg\scripts\cmake\vcpkg_execute_required_process.cmake
+        echo Creating directory to prevent failure: vcpkg\downloads
+        md vcpkg\downloads
 
-    - name: Get symbols (debug)
+    - name: Install packages
       shell: cmd
       run: |
-        cd %VCPKG_ROOT%\installed\*\lib
-        dumpbin /all libpng16d.lib
+        .\vcpkg\vcpkg install --debug bzip2 || echo FAILED
+        echo Start Env Check
+        echo == Print version
+        "C:/Program Files/Git/bin/git.exe" --version || echo Git not found
+        ::echo == Run tree
+        ::tree D:/a/github-actions-test/github-actions-test/vcpkg/downloads || echo Tree failed
+        ::echo == cd into dir
+        ::cd D:/a/github-actions-test/github-actions-test/vcpkg/downloads || echo cd failed
+        ::echo == Attempt to git init
+        ::"C:/Program Files/Git/bin/git.exe" init git-tmp || echo Git init failed
+        echo End GitHub Actions Environment Check
+        ::"C:\Program Files\CMake\bin\cmake.exe" --debug-output --trace -Wdev --debug -DALL_FEATURES= -DCURRENT_PORT_DIR=D:/a/github-actions-test/github-actions-test/vcpkg/ports/fdlibm -D_HOST_TRIPLET=x64-windows -DFEATURES=core -DPORT=fdlibm -DVCPKG_USE_HEAD_VERSION=0 -D_VCPKG_DOWNLOAD_TOOL=BUILT_IN -D_VCPKG_EDITABLE=0 -D_VCPKG_NO_DOWNLOADS=0 -DCMD=BUILD -DDOWNLOADS=D:/a/github-actions-test/github-actions-test/vcpkg/downloads -DTARGET_TRIPLET=x86-windows "-DTARGET_TRIPLET_FILE=D:\a\github-actions-test\github-actions-test\vcpkg\triplets\x86-windows.cmake" -DVCPKG_BASE_VERSION=2021-05-05 -DVCPKG_CONCURRENCY=3 -DVCPKG_PLATFORM_TOOLSET=v142 "-DGIT=C:/Program Files/Git/bin/git.exe" -DVCPKG_ROOT_DIR=D:/a/github-actions-test/github-actions-test/vcpkg -DPACKAGES_DIR=D:/a/github-actions-test/github-actions-test/vcpkg/packages -DBUILDTREES_DIR=D:/a/github-actions-test/github-actions-test/vcpkg/buildtrees -D_VCPKG_INSTALLED_DIR=D:/a/github-actions-test/github-actions-test/vcpkg/installed -DDOWNLOADS=D:/a/github-actions-test/github-actions-test/vcpkg/downloads -DVCPKG_MANIFEST_INSTALL=OFF -P "D:\a\github-actions-test\github-actions-test\vcpkg\scripts\ports.cmake
