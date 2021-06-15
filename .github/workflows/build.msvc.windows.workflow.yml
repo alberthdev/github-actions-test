@@ -37,8 +37,8 @@ jobs:
       run: |
         echo Updating: vcpkg\scripts\cmake\vcpkg_execute_required_process.cmake
         copy /b /v /y .github\workflows\vcpkg-patches\vcpkg_execute_required_process.cmake vcpkg\scripts\cmake\vcpkg_execute_required_process.cmake
-        ::echo Creating directory to prevent failure: vcpkg\downloads
-        ::md vcpkg\downloads
+        echo Creating directory to prevent failure: vcpkg\downloads
+        md vcpkg\downloads
 
     - name: Install packages
       shell: cmd
