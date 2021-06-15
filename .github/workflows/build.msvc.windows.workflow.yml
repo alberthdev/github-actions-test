@@ -28,7 +28,7 @@ jobs:
         vcpkgArguments: '@${{ env.VCPKGRESPONSEFILE }}'
         # libpng-apng portfile fixed (microsoft/vcpkg#13837) as of 2020.10.13
         # This commit ID dates 6/4/2021 (not tied to a tag)
-        vcpkgGitCommitId: b2544fd780b2e9a05d903314cbbd37268ba43d81
+        vcpkgGitCommitId: 14418e1e48ff563382fbe970637425c52d109b16
         appendedCacheKey: 23445
         setupOnly: true
 
@@ -37,8 +37,8 @@ jobs:
       run: |
         echo Updating: vcpkg\scripts\cmake\vcpkg_execute_required_process.cmake
         copy /b /v /y .github\workflows\vcpkg-patches\vcpkg_execute_required_process.cmake vcpkg\scripts\cmake\vcpkg_execute_required_process.cmake
-        echo Creating directory to prevent failure: vcpkg\downloads
-        md vcpkg\downloads
+        ::echo Creating directory to prevent failure: vcpkg\downloads
+        ::md vcpkg\downloads
 
     - name: Install packages
       shell: cmd
